@@ -24,7 +24,7 @@ Requires SFML installed (`brew install sfml` on macOS).
 ## Project Structure
 
 ```
-ChessEngine/
+ChessHeatMap/
   assets/
     white_pieces/  (6 PNGs: white-pawn.png, white-knight.png, etc.)
     black_pieces/  (6 PNGs: black-pawn.png, black-knight.png, etc.)
