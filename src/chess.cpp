@@ -37,6 +37,8 @@ Color pieceColor(Piece p) {
 bool isWhite(Piece p) { return pieceColor(p) == WHITE; }
 bool isBlack(Piece p) { return pieceColor(p) == BLACK; }
 
+enum ViewMode { VIEW_NORMAL, VIEW_ATTACK, VIEW_DEFENDER };
+
 struct Move {
     int fromRow, fromCol;
     int toRow, toCol;
@@ -377,6 +379,143 @@ public:
             }
         }
     }
+
+    // Count how many white/black pieces attack each square (pseudo-legal)
+    void getAttackCounts(std::array<std::array<int,8>,8>& white,
+                         std::array<std::array<int,8>,8>& black) const {
+        for (auto& row : white) row.fill(0);
+        for (auto& row : black) row.fill(0);
+
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++) {
+                Piece p = squares[r][c];
+                Color col = pieceColor(p);
+                if (col == NONE) continue;
+                auto& grid = (col == WHITE) ? white : black;
+
+                auto markSliding = [&](int dr, int dc) {
+                    for (int step = 1; step < 8; step++) {
+                        int nr = r + dr*step, nc = c + dc*step;
+                        if (!inBounds(nr, nc)) break;
+                        grid[nr][nc]++;
+                        if (squares[nr][nc] != EMPTY) break;
+                    }
+                };
+
+                switch (p) {
+                case W_PAWN:
+                    for (int dc : {-1, 1})
+                        if (inBounds(r+1, c+dc)) grid[r+1][c+dc]++;
+                    break;
+                case B_PAWN:
+                    for (int dc : {-1, 1})
+                        if (inBounds(r-1, c+dc)) grid[r-1][c+dc]++;
+                    break;
+                case W_KNIGHT: case B_KNIGHT: {
+                    int dr[] = {-2,-2,-1,-1,1,1,2,2};
+                    int dc[] = {-1,1,-2,2,-2,2,-1,1};
+                    for (int i = 0; i < 8; i++) {
+                        int nr = r+dr[i], nc = c+dc[i];
+                        if (inBounds(nr, nc)) grid[nr][nc]++;
+                    }
+                    break;
+                }
+                case W_BISHOP: case B_BISHOP:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,-1},{-1,1},{1,-1},{1,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_ROOK: case B_ROOK:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,0},{1,0},{0,-1},{0,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_QUEEN: case B_QUEEN:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,-1},{-1,0},{-1,1},{0,-1},{0,1},{1,-1},{1,0},{1,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_KING: case B_KING:
+                    for (int dr = -1; dr <= 1; dr++)
+                        for (int dc = -1; dc <= 1; dc++) {
+                            if (dr == 0 && dc == 0) continue;
+                            if (inBounds(r+dr, c+dc)) grid[r+dr][c+dc]++;
+                        }
+                    break;
+                default: break;
+                }
+            }
+    }
+
+    // Count how many friendly pieces defend each occupied square
+    void getDefenseCounts(std::array<std::array<int,8>,8>& white,
+                          std::array<std::array<int,8>,8>& black) const {
+        for (auto& row : white) row.fill(0);
+        for (auto& row : black) row.fill(0);
+
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++) {
+                Piece p = squares[r][c];
+                Color col = pieceColor(p);
+                if (col == NONE) continue;
+                auto& grid = (col == WHITE) ? white : black;
+
+                auto markSliding = [&](int dr, int dc) {
+                    for (int step = 1; step < 8; step++) {
+                        int nr = r + dr*step, nc = c + dc*step;
+                        if (!inBounds(nr, nc)) break;
+                        Piece target = squares[nr][nc];
+                        if (target != EMPTY) {
+                            if (pieceColor(target) == col)
+                                grid[nr][nc]++;
+                            break;
+                        }
+                    }
+                };
+
+                switch (p) {
+                case W_PAWN:
+                    for (int dc : {-1, 1})
+                        if (inBounds(r+1, c+dc) && pieceColor(squares[r+1][c+dc]) == WHITE)
+                            grid[r+1][c+dc]++;
+                    break;
+                case B_PAWN:
+                    for (int dc : {-1, 1})
+                        if (inBounds(r-1, c+dc) && pieceColor(squares[r-1][c+dc]) == BLACK)
+                            grid[r-1][c+dc]++;
+                    break;
+                case W_KNIGHT: case B_KNIGHT: {
+                    int dr[] = {-2,-2,-1,-1,1,1,2,2};
+                    int dc[] = {-1,1,-2,2,-2,2,-1,1};
+                    for (int i = 0; i < 8; i++) {
+                        int nr = r+dr[i], nc = c+dc[i];
+                        if (inBounds(nr, nc) && pieceColor(squares[nr][nc]) == col)
+                            grid[nr][nc]++;
+                    }
+                    break;
+                }
+                case W_BISHOP: case B_BISHOP:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,-1},{-1,1},{1,-1},{1,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_ROOK: case B_ROOK:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,0},{1,0},{0,-1},{0,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_QUEEN: case B_QUEEN:
+                    for (auto [dr,dc] : std::vector<std::pair<int,int>>{{-1,-1},{-1,0},{-1,1},{0,-1},{0,1},{1,-1},{1,0},{1,1}})
+                        markSliding(dr, dc);
+                    break;
+                case W_KING: case B_KING:
+                    for (int dr = -1; dr <= 1; dr++)
+                        for (int dc = -1; dc <= 1; dc++) {
+                            if (dr == 0 && dc == 0) continue;
+                            int nr = r+dr, nc = c+dc;
+                            if (inBounds(nr, nc) && pieceColor(squares[nr][nc]) == col)
+                                grid[nr][nc]++;
+                        }
+                    break;
+                default: break;
+                }
+            }
+    }
 };
 
 // ============================================================================
@@ -495,7 +634,50 @@ public:
             }
     }
 
-    void drawStatusBar(sf::RenderWindow& window, const Board& board) {
+    void drawAttackHeatMap(sf::RenderWindow& window, const Board& board) {
+        std::array<std::array<int,8>,8> whiteGrid, blackGrid;
+        board.getAttackCounts(whiteGrid, blackGrid);
+        for (int row = 0; row < 8; row++)
+            for (int col = 0; col < 8; col++) {
+                int diff = whiteGrid[row][col] - blackGrid[row][col];
+                if (diff == 0) continue;
+                sf::RectangleShape sq({TILE_SIZE, TILE_SIZE});
+                sq.setPosition({colToX(col), rowToY(row)});
+                int alpha = std::min(std::abs(diff) * 60, 230);
+                if (diff > 0)
+                    sq.setFillColor(sf::Color(70, 130, 230, static_cast<uint8_t>(alpha)));
+                else
+                    sq.setFillColor(sf::Color(230, 70, 70, static_cast<uint8_t>(alpha)));
+                window.draw(sq);
+            }
+    }
+
+    void drawDefenderMap(sf::RenderWindow& window, const Board& board) {
+        std::array<std::array<int,8>,8> whiteGrid, blackGrid;
+        board.getDefenseCounts(whiteGrid, blackGrid);
+        for (int row = 0; row < 8; row++)
+            for (int col = 0; col < 8; col++) {
+                Piece p = board.squares[row][col];
+                if (p == EMPTY) continue;
+                Color col2 = pieceColor(p);
+                int defenders = (col2 == WHITE) ? whiteGrid[row][col] : blackGrid[row][col];
+                sf::RectangleShape sq({TILE_SIZE, TILE_SIZE});
+                sq.setPosition({colToX(col), rowToY(row)});
+                if (defenders == 0) {
+                    sq.setFillColor(sf::Color(255, 255, 255, 140));
+                } else {
+                    int alpha = std::min(defenders * 75, 230);
+                    if (col2 == WHITE)
+                        sq.setFillColor(sf::Color(70, 130, 230, static_cast<uint8_t>(alpha)));
+                    else
+                        sq.setFillColor(sf::Color(230, 70, 70, static_cast<uint8_t>(alpha)));
+                }
+                window.draw(sq);
+            }
+    }
+
+    void drawStatusBar(sf::RenderWindow& window, const Board& board,
+                       ViewMode viewMode = VIEW_NORMAL) {
         sf::RectangleShape bar({BOARD_PX, STATUS_HEIGHT});
         bar.setPosition({0, BOARD_PX});
         bar.setFillColor(sf::Color(50, 50, 50));
@@ -511,6 +693,10 @@ public:
             if (board.isInCheck(board.sideToMove))
                 text += " -- CHECK!";
         }
+        if (viewMode == VIEW_ATTACK)
+            text += "  [Attack Map]";
+        else if (viewMode == VIEW_DEFENDER)
+            text += "  [Defender Map]";
         sf::Text label(*font, text, 20);
         label.setPosition({10.f, BOARD_PX + 8.f});
         label.setFillColor(sf::Color::White);
@@ -528,6 +714,7 @@ public:
     Board board;
     Renderer renderer;
 
+    ViewMode viewMode;
     bool dragging;
     int selRow, selCol;
     float dragX, dragY;
@@ -536,7 +723,7 @@ public:
     Game() : window(sf::VideoMode({static_cast<unsigned>(Renderer::BOARD_PX),
                                     static_cast<unsigned>(Renderer::BOARD_PX + Renderer::STATUS_HEIGHT)}),
                     "Chess"),
-             dragging(false), selRow(-1), selCol(-1), dragX(0), dragY(0) {}
+             viewMode(VIEW_NORMAL), dragging(false), selRow(-1), selCol(-1), dragX(0), dragY(0) {}
 
     bool init() { return renderer.loadAssets(); }
 
@@ -554,6 +741,12 @@ private:
                 window.close();
                 return;
             }
+            if (const auto* kp = event->getIf<sf::Event::KeyPressed>()) {
+                if (kp->code == sf::Keyboard::Key::Num1) viewMode = VIEW_NORMAL;
+                else if (kp->code == sf::Keyboard::Key::Num2) viewMode = VIEW_ATTACK;
+                else if (kp->code == sf::Keyboard::Key::Num3) viewMode = VIEW_DEFENDER;
+            }
+
             if (board.gameOver) continue;
 
             if (const auto* mp = event->getIf<sf::Event::MouseButtonPressed>()) {
@@ -610,6 +803,11 @@ private:
 
         renderer.drawBoard(window);
 
+        if (viewMode == VIEW_ATTACK)
+            renderer.drawAttackHeatMap(window, board);
+        else if (viewMode == VIEW_DEFENDER)
+            renderer.drawDefenderMap(window, board);
+
         if (selRow >= 0)
             renderer.drawHighlight(window, selRow, selCol,
                                    sf::Color(255, 255, 0, 100));
@@ -631,7 +829,7 @@ private:
             renderer.drawPiece(window, board.squares[selRow][selCol],
                                dragX, dragY);
 
-        renderer.drawStatusBar(window, board);
+        renderer.drawStatusBar(window, board, viewMode);
 
         window.display();
     }

@@ -42,6 +42,14 @@ ChessEngine/
 4. **Game class** — Owns window, board, renderer. Drag-and-drop: mouse press picks up piece, mouse move drags it, mouse release drops on legal square or snaps back. Turn enforcement, game-over disabling.
 5. **`main()`** — Creates Game and calls `run()`.
 
+## Overlay Views (Keyboard Shortcuts)
+
+- **1** — Normal view (default)
+- **2** — Attack Heat Map: shows board control per square. Blue = white controls, red = black controls, intensity scales with advantage.
+- **3** — Defender Map: shows how well each piece is defended by friendly pieces. Blue/red tint for defended white/black pieces, white overlay for undefended pieces.
+
+Board methods: `getAttackCounts()` counts pseudo-legal attacks per square per side. `getDefenseCounts()` counts friendly pieces defending each occupied square. Renderer methods: `drawAttackHeatMap()`, `drawDefenderMap()`. State tracked via `ViewMode` enum in Game class.
+
 ## Key Design Details
 
 - **Coordinate system**: `squares[row][col]` — row 0 = rank 1 (white), row 7 = rank 8 (black). Col 0 = a-file.
