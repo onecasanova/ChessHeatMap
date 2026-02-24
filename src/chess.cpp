@@ -719,6 +719,7 @@ public:
     int selRow, selCol;
     float dragX, dragY;
     std::vector<Move> legalFromSelected;
+    std::vector<Board> undoHistory; // max 2 states
 
     Game() : window(sf::VideoMode({static_cast<unsigned>(Renderer::BOARD_PX),
                                     static_cast<unsigned>(Renderer::BOARD_PX + Renderer::STATUS_HEIGHT)}),
@@ -745,6 +746,12 @@ private:
                 if (kp->code == sf::Keyboard::Key::Num1) viewMode = VIEW_NORMAL;
                 else if (kp->code == sf::Keyboard::Key::Num2) viewMode = VIEW_ATTACK;
                 else if (kp->code == sf::Keyboard::Key::Num3) viewMode = VIEW_DEFENDER;
+                else if (kp->code == sf::Keyboard::Key::Z && !undoHistory.empty() && !dragging) {
+                    board = undoHistory.back();
+                    undoHistory.pop_back();
+                    selRow = selCol = -1;
+                    legalFromSelected.clear();
+                }
             }
 
             if (board.gameOver) continue;
@@ -788,6 +795,9 @@ private:
 
         for (auto& m : legalFromSelected) {
             if (m.toRow == row && m.toCol == col) {
+                if (undoHistory.size() >= 2)
+                    undoHistory.erase(undoHistory.begin());
+                undoHistory.push_back(board);
                 board.makeMove(m);
                 break;
             }
